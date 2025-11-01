@@ -34,7 +34,9 @@ const FILTER_SECTIONS = [
   { id: 'buyerInsights', label: 'Buyer/Department Insights', default: true },
   { id: 'rivalryScore', label: 'Rivalry Scorecard', default: true },
   { id: 'lowCompetition', label: 'Single-Bidder/Low-Competition Opportunities', default: true },
-  { id: 'topStates', label: 'Top Performing States/Geographies', default: true },
+  { id: 'categoryAnalysis', label: 'Category Distribution Analysis', default: true },
+  { id: 'statesAnalysis', label: 'Top Performing States/Geographies', default: true },
+  { id: 'departmentsAnalysis', label: 'Top Departments by Tender Volume', default: true },
 ];
 
 const GenerateReport = () => {

@@ -172,9 +172,14 @@ const drawModernBarChart = (
     doc.setFillColor(...colors.borderGray);
     doc.roundedRect(x + 60, currentY + 2, width, barHeight - 4, 3, 3, 'F');
     
-    // Draw gradient bar (simulated with lighter color on right)
+    // Draw gradient bar (simulated with darker base and lighter overlay)
     doc.setFillColor(...item.color);
     doc.roundedRect(x + 60, currentY + 2, Math.max(barWidth, 2), barHeight - 4, 3, 3, 'F');
+    
+    // Add lighter gradient overlay on top half of bar for depth
+    const lighterColor = item.color.map(c => Math.min(c + 30, 255)) as [number, number, number];
+    doc.setFillColor(...lighterColor);
+    doc.roundedRect(x + 60, currentY + 2, Math.max(barWidth, 2), (barHeight - 4) / 2, 3, 3, 'F');
     
     // Draw value
     if (showValues) {
@@ -329,19 +334,25 @@ export const generatePDF = async (
 
   // ============ PAGE 1: COVER + EXECUTIVE SUMMARY ============
   
-  // Modern cover design
+  // Modern cover design with gradient effect
   doc.setFillColor(...colors.deepBlue);
   doc.rect(0, 0, pageWidth, 80, 'F');
+  
+  // Add gradient effect (darker to lighter)
+  doc.setFillColor(30, 58, 138); // Darker blue overlay
+  doc.rect(0, 0, pageWidth, 40, 'F');
   
   // Decorative circles (background elements)
   doc.setFillColor(30, 58, 138); // Darker blue
   doc.circle(pageWidth + 10, 10, 50, 'F');
   doc.circle(-20, 60, 40, 'F');
   
-  // Top accent line
+  // Top accent line with gradient simulation
   doc.setDrawColor(...colors.brightBlue);
-  doc.setLineWidth(2);
+  doc.setLineWidth(3);
   doc.line(0, 5, pageWidth, 5);
+  doc.setLineWidth(1);
+  doc.line(0, 7, pageWidth, 7);
   
   // Report type
   doc.setFontSize(8);
@@ -408,13 +419,18 @@ export const generatePDF = async (
   
   // KPI Cards Section
   yPosition = 150;
-  addSectionHeader('Performance Overview', '📊', colors.deepBlue);
+  addSectionHeader('Performance Overview', '', colors.deepBlue);
   
   // 4 KPI cards in 2x2 grid
   const kpiCardWidth = (pageWidth - 2 * margin - 12) / 2;
   const kpiCardHeight = 28;
   
-  // Card 1: Win Rate
+  // Card 1: Win Rate - with gradient background
+  doc.setFillColor(240, 253, 244); // Light green gradient start
+  doc.roundedRect(margin, yPosition, kpiCardWidth, kpiCardHeight, 4, 4, 'F');
+  doc.setFillColor(16, 185, 129, 0.1); // Gradient overlay
+  doc.roundedRect(margin, yPosition, kpiCardWidth, kpiCardHeight / 2, 4, 4, 'F');
+  
   drawCard(doc, margin, yPosition, kpiCardWidth, kpiCardHeight, colors.successGreen);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
@@ -425,7 +441,10 @@ export const generatePDF = async (
   doc.setTextColor(...colors.mediumGray);
   doc.text('Win Rate', margin + kpiCardWidth / 2, yPosition + 22, { align: 'center' });
   
-  // Card 2: Total Bids
+  // Card 2: Total Bids - with gradient
+  doc.setFillColor(239, 246, 255); // Light blue gradient
+  doc.roundedRect(margin + kpiCardWidth + 12, yPosition, kpiCardWidth, kpiCardHeight, 4, 4, 'F');
+  
   drawCard(doc, margin + kpiCardWidth + 12, yPosition, kpiCardWidth, kpiCardHeight, colors.brightBlue);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
@@ -438,7 +457,10 @@ export const generatePDF = async (
   
   yPosition += kpiCardHeight + 8;
   
-  // Card 3: Success Count
+  // Card 3: Success Count - with gradient
+  doc.setFillColor(243, 232, 255); // Light purple gradient
+  doc.roundedRect(margin, yPosition, kpiCardWidth, kpiCardHeight, 4, 4, 'F');
+  
   drawCard(doc, margin, yPosition, kpiCardWidth, kpiCardHeight, colors.purple);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
@@ -449,7 +471,10 @@ export const generatePDF = async (
   doc.setTextColor(...colors.mediumGray);
   doc.text('Successful Wins', margin + kpiCardWidth / 2, yPosition + 22, { align: 'center' });
   
-  // Card 4: Total Value
+  // Card 4: Total Value - with gradient
+  doc.setFillColor(254, 243, 199); // Light orange gradient
+  doc.roundedRect(margin + kpiCardWidth + 12, yPosition, kpiCardWidth, kpiCardHeight, 4, 4, 'F');
+  
   drawCard(doc, margin + kpiCardWidth + 12, yPosition, kpiCardWidth, kpiCardHeight, colors.warningOrange);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
@@ -526,7 +551,7 @@ export const generatePDF = async (
   // ============ PAGE 2: AI INSIGHTS ============
   addNewPage();
   
-  addSectionHeader('AI-Powered Strategic Insights', '🤖', colors.purple);
+  addSectionHeader('AI-Powered Strategic Insights', '', colors.purple);
   
   // AI Summary Card
   const aiSummary = reportData.data.missedButWinnable?.ai?.strategy_summary || '';
@@ -549,7 +574,7 @@ export const generatePDF = async (
   
   // Organization Affinity
   checkPageBreak(80);
-  addSectionHeader('Organization Affinity Analysis', '🏢', colors.brightBlue);
+  addSectionHeader('Organization Affinity Analysis', '', colors.brightBlue);
   
   const orgAffinity = reportData.data.missedButWinnable?.ai?.signals?.org_affinity || [];
   if (orgAffinity.length > 0) {
@@ -572,7 +597,7 @@ export const generatePDF = async (
   
   // Department Affinity
   checkPageBreak(80);
-  addSectionHeader('Department Performance', '📋', colors.successGreen);
+  addSectionHeader('Department Performance', '', colors.successGreen);
   
   const deptAffinity = reportData.data.missedButWinnable?.ai?.signals?.dept_affinity || [];
   if (deptAffinity.length > 0) {
@@ -597,7 +622,7 @@ export const generatePDF = async (
   // ============ PAGE 3: PERFORMANCE DETAILS ============
   if (filters.includeSections.includes('bidsSummary') && wins.length > 0) {
     checkPageBreak(100);
-    addSectionHeader('Recent Successful Bids', '🏆', colors.successGreen);
+    addSectionHeader('Recent Successful Bids', '', colors.successGreen);
     
     // Stats row
     drawCard(doc, margin, yPosition, pageWidth - 2 * margin, 20);
@@ -673,7 +698,7 @@ export const generatePDF = async (
   // ============ PAGE 4: RECOMMENDATIONS ============
   if (reportData.data.missedButWinnable?.ai?.guidance?.next_steps) {
     checkPageBreak(100);
-    addSectionHeader('Strategic Recommendations', '🎯', colors.warningOrange);
+    addSectionHeader('Strategic Recommendations', '', colors.warningOrange);
     
     const recommendations = reportData.data.missedButWinnable.ai.guidance.next_steps;
     const cardWidth = (pageWidth - 2 * margin - 12) / 2;
@@ -706,10 +731,13 @@ export const generatePDF = async (
       doc.setLineWidth(0.3);
       doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'S');
       
-      // Icon
-      const icons = ['🎯', '📈', '💰', '🤝', '🔍', '⚡'];
-      doc.setFontSize(16);
-      doc.text(icons[index % icons.length], cardX + 8, cardY + 12);
+      // Icon badge with number
+      doc.setFillColor(...accentColors[bgColorIndex]);
+      doc.circle(cardX + 12, cardY + 10, 5, 'F');
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.white);
+      doc.text((index + 1).toString(), cardX + 12, cardY + 12, { align: 'center' });
       
       // Title
       doc.setFontSize(9);
@@ -734,7 +762,7 @@ export const generatePDF = async (
   // ============ PAGE 5: OPPORTUNITIES ============
   if (filters.includeSections.includes('lowCompetition')) {
     checkPageBreak(100);
-    addSectionHeader('Low Competition Opportunities', '💎', colors.amber);
+    addSectionHeader('Low Competition Opportunities', '', colors.amber);
     
     const opportunities = reportData.data.lowCompetitionBids?.results || [];
     if (opportunities.length > 0) {
@@ -761,7 +789,7 @@ export const generatePDF = async (
         const bidNum = (opp.bid_number || 'N/A').substring(0, 20);
         const endDate = opp.bid_end_ts ? formatDate(opp.bid_end_ts) : 'N/A';
         const competitors = opp.seller_count || '0';
-        const urgency = opp.bid_end_ts ? (new Date(opp.bid_end_ts) < new Date() ? '⚠️ Closed' : '✓ Open') : 'Unknown';
+        const urgency = opp.bid_end_ts ? (new Date(opp.bid_end_ts) < new Date() ? 'Closed' : 'Open') : 'Unknown';
         
         return [
           (index + 1).toString(),
@@ -817,7 +845,7 @@ export const generatePDF = async (
   // ============ PAGE 6: MARKET ANALYSIS ============
   if (filters.includeSections.includes('categoryAnalysis')) {
     checkPageBreak(100);
-    addSectionHeader('Category Distribution', '📦', colors.purple);
+    addSectionHeader('Category Distribution', '', colors.purple);
     
     const categories = reportData.data.categoryListing || [];
     if (categories.length > 0) {
@@ -838,6 +866,46 @@ export const generatePDF = async (
     }
   }
   
+  // ============ PAGE 7: TOP PERFORMING STATES ============
+  if (filters.includeSections.includes('statesAnalysis') && reportData.data.topPerformingStates?.results) {
+    checkPageBreak(100);
+    addSectionHeader('Top Performing States', '', colors.successGreen);
+    
+    const statesData = reportData.data.topPerformingStates.results.slice(0, 10).map((state) => ({
+      label: state.state_name,
+      value: Number(state.total_tenders),
+      percentage: 0,
+      color: colors.successGreen
+    }));
+    
+    if (statesData.length > 0) {
+      const chartHeight = statesData.length * 20 + 10;
+      drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
+      drawModernBarChart(doc, margin + 10, yPosition + 8, pageWidth - 2 * margin - 80, statesData, false);
+      yPosition += chartHeight + 12;
+    }
+  }
+  
+  // ============ PAGE 8: TOP DEPARTMENTS ============
+  if (filters.includeSections.includes('departmentsAnalysis') && reportData.data.allDepartments) {
+    checkPageBreak(100);
+    addSectionHeader('Top Departments by Tender Volume', '', colors.deepBlue);
+    
+    const deptData = reportData.data.allDepartments.slice(0, 10).map((dept) => ({
+      label: dept.department,
+      value: Number(dept.total_tenders),
+      percentage: 0,
+      color: colors.deepBlue
+    }));
+    
+    if (deptData.length > 0) {
+      const chartHeight = deptData.length * 20 + 10;
+      drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
+      drawModernBarChart(doc, margin + 10, yPosition + 8, pageWidth - 2 * margin - 80, deptData, false);
+      yPosition += chartHeight + 12;
+    }
+  }
+  
   // ============ FINAL PAGE: DISCLAIMER ============
   checkPageBreak(60);
   
@@ -853,7 +921,7 @@ export const generatePDF = async (
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...colors.errorRed);
-  doc.text('⚠️ Important Disclaimer', margin + 10, yPosition + 10);
+  doc.text('Important Disclaimer', margin + 10, yPosition + 10);
   
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
