@@ -87,6 +87,19 @@ const formatDate = (dateString: string): string => {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+// Sanitize text to avoid encoding issues and unwanted extra spaces
+const clean = (value: any): string => {
+  const s = value == null ? '' : String(value);
+  return s
+    .replace(/[₹]/g, 'Rs ')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim();
+};
+
 // Helper to draw modern donut chart
 const drawModernDonutChart = (
   doc: jsPDF,
@@ -149,12 +162,12 @@ const drawModernBarChart = (
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...colors.darkGray);
-    const maxLabelWidth = 50;
-    let labelText = item.label;
+const maxLabelWidth = 50;
+    let labelText = clean(item.label);
     while (doc.getTextWidth(labelText) > maxLabelWidth && labelText.length > 3) {
       labelText = labelText.substring(0, labelText.length - 1);
     }
-    if (labelText !== item.label) labelText += '...';
+    if (labelText !== clean(item.label)) labelText += '...';
     doc.text(labelText, x, currentY + 7);
     
     doc.setFillColor(...colors.borderGray);
@@ -209,8 +222,12 @@ export const generatePDF = async (
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  let yPosition = 15;
   const margin = 15;
+  const HEADER_H = 15;
+  const FOOTER_H = 12;
+  const SAFE_TOP = HEADER_H + 3;
+  const SAFE_BOTTOM = pageHeight - FOOTER_H - 5;
+  let yPosition = SAFE_TOP;
 
   const wins = reportData.data.missedButWinnable?.recentWins || [];
   const marketWins = reportData.data.missedButWinnable?.marketWins || [];
@@ -223,9 +240,9 @@ export const generatePDF = async (
   const avgValue = successCount > 0 ? Math.round(totalValue / successCount) : 0;
   const avgBidsPerDay = totalBids / reportData.meta.params_used.days;
 
-  const addNewPage = () => {
+const addNewPage = () => {
     doc.addPage();
-    yPosition = 15;
+    yPosition = SAFE_TOP;
     addPageHeader();
     addPageFooter();
   };
@@ -263,8 +280,8 @@ export const generatePDF = async (
     doc.text('Confidential', pageWidth - margin, pageHeight - 5, { align: 'right' });
   };
 
-  const checkPageBreak = (requiredSpace: number): boolean => {
-    if (yPosition + requiredSpace > pageHeight - 20) {
+const checkPageBreak = (requiredSpace: number): boolean => {
+    if (yPosition + requiredSpace > SAFE_BOTTOM) {
       addNewPage();
       return true;
     }
@@ -359,7 +376,7 @@ export const generatePDF = async (
   doc.text('Department:', margin + 8, detailsY + 12);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...colors.darkGray);
-  const deptText = reportData.meta.params_used.department;
+const deptText = clean(reportData.meta.params_used.department);
   const truncDept = deptText.length > 50 ? deptText.substring(0, 50) + '...' : deptText;
   doc.text(truncDept, margin + 50, detailsY + 12);
   
@@ -368,12 +385,12 @@ export const generatePDF = async (
   doc.text('Offered Items:', margin + 8, detailsY + 18);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...colors.darkGray);
-  const itemsText = reportData.meta.params_used.offeredItem || 'Various items';
+const itemsText = clean(reportData.meta.params_used.offeredItem || 'Various items');
   const itemLines = doc.splitTextToSize(itemsText, pageWidth - 2 * margin - 60);
   doc.text(itemLines.slice(0, 2), margin + 50, detailsY + 18);
   
-  // ============ PERFORMANCE OVERVIEW ============
-  yPosition = 135;
+// ============ PERFORMANCE OVERVIEW ============
+  addNewPage();
   addSectionHeader('Performance Overview', colors.deepBlue);
   
   const kpiCardWidth = (pageWidth - 2 * margin - 10) / 2;
@@ -495,23 +512,19 @@ export const generatePDF = async (
   
   addSectionHeader('Summary of Bids Participated - Department-wise', colors.brightBlue);
   
-  const deptAffinity = reportData.data.missedButWinnable?.ai?.signals?.dept_affinity || [];
-  if (deptAffinity.length > 0) {
-    const deptData = deptAffinity.slice(0, 10).map((dept) => {
-      const deptWins = wins.filter(w => w.dept === dept.dept);
-      const deptValue = deptWins.reduce((sum, w) => sum + (w.total_price || 0), 0);
-      const percentage = totalValue > 0 ? (deptValue / totalValue) * 100 : 0;
-      return {
-        label: dept.dept,
-        value: deptValue,
-        percentage: percentage,
-        color: percentage > 40 ? colors.successGreen : percentage > 20 ? colors.brightBlue : colors.warningOrange
-      };
-    });
-    
-    const chartHeight = Math.min(deptData.length * 16 + 10, 85);
+const allDepts = (reportData.data.allDepartments || [])
+      .filter((d: any) => clean(d.department) && clean(d.department).toLowerCase() !== 'na');
+  if (allDepts.length > 0) {
+    const deptData = allDepts.slice(0, 15).map((d: any) => ({
+      label: clean(d.department),
+      value: Number(d.total_tenders),
+      percentage: 0,
+      color: colors.brightBlue,
+    }));
+    const chartHeight = Math.min(deptData.length * 16 + 10, 120);
+    checkPageBreak(chartHeight + 20);
     drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
-    drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, deptData, true);
+    drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, deptData, false);
     yPosition += chartHeight + 8;
   }
   
@@ -539,15 +552,15 @@ export const generatePDF = async (
   checkPageBreak(70);
   addSectionHeader('Top Performer Departments', colors.successGreen);
   
-  if (reportData.data.allDepartments && reportData.data.allDepartments.length > 0) {
-    const topDepts = reportData.data.allDepartments.slice(0, 10).map((dept) => ({
-      label: dept.department,
+if (reportData.data.allDepartments && reportData.data.allDepartments.length > 0) {
+    const topDepts = reportData.data.allDepartments.slice(0, 12).map((dept) => ({
+      label: clean(dept.department),
       value: Number(dept.total_tenders),
       percentage: 0,
       color: colors.successGreen
     }));
-    
-    const chartHeight = Math.min(topDepts.length * 16 + 10, 85);
+    const chartHeight = Math.min(topDepts.length * 16 + 10, 110);
+    checkPageBreak(chartHeight + 20);
     drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
     drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, topDepts, false);
     yPosition += chartHeight + 8;
@@ -575,15 +588,16 @@ export const generatePDF = async (
     
     yPosition += 19;
     
-    const missedTableData = marketWins.slice(0, 10).map((win, index) => [
+let missedTableData = marketWins.slice(0, 10).map((win, index) => [
       (index + 1).toString(),
-      (win.bid_number || 'N/A').substring(0, 18),
-      (win.org || 'N/A').substring(0, 28),
-      (win.dept || 'N/A').substring(0, 22),
+      clean((win.bid_number || 'N/A').substring(0, 18)),
+      clean((win.org || 'N/A').substring(0, 28)),
+      clean((win.dept || 'N/A').substring(0, 22)),
       win.quantity?.toString() || '0',
       formatCurrency(win.total_price || 0),
       formatDate(win.ended_at || win.created_at)
     ]);
+    missedTableData = missedTableData.map(row => row.map(cell => typeof cell === 'string' ? clean(cell) : cell));
     
     autoTable(doc, {
       startY: yPosition,
@@ -641,7 +655,8 @@ export const generatePDF = async (
       };
     });
     
-    const chartHeight = Math.min(orgData.length * 16 + 10, 85);
+const chartHeight = Math.min(orgData.length * 16 + 10, 85);
+    checkPageBreak(chartHeight + 20);
     drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
     drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, orgData, true);
     yPosition += chartHeight + 8;
@@ -660,7 +675,8 @@ export const generatePDF = async (
       color: colors.errorRed
     }));
     
-    const chartHeight = Math.min(rivalryData.length * 16 + 10, 85);
+const chartHeight = Math.min(rivalryData.length * 16 + 10, 85);
+    checkPageBreak(chartHeight + 20);
     drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
     drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, rivalryData, false);
     yPosition += chartHeight + 8;
@@ -689,9 +705,9 @@ export const generatePDF = async (
     
     yPosition += 19;
     
-    const oppTableData = opportunities.slice(0, 12).map((opp, index) => {
-      const org = (opp.organisation || 'N/A').substring(0, 30);
-      const bidNum = (opp.bid_number || 'N/A').substring(0, 20);
+let oppTableData = opportunities.slice(0, 12).map((opp, index) => {
+      const org = clean((opp.organisation || 'N/A').substring(0, 30));
+      const bidNum = clean((opp.bid_number || 'N/A').substring(0, 20));
       const endDate = opp.bid_end_ts ? formatDate(opp.bid_end_ts) : 'N/A';
       const competitors = opp.seller_count || '0';
       const urgency = opp.bid_end_ts ? (new Date(opp.bid_end_ts) < new Date() ? 'Closed' : 'Open') : 'Unknown';
@@ -706,6 +722,7 @@ export const generatePDF = async (
         urgency
       ];
     });
+    oppTableData = oppTableData.map(row => row.map(cell => typeof cell === 'string' ? clean(cell) : cell));
     
     autoTable(doc, {
       startY: yPosition,
@@ -758,8 +775,9 @@ export const generatePDF = async (
       color: colors.successGreen
     }));
     
-    if (statesData.length > 0) {
+if (statesData.length > 0) {
       const chartHeight = Math.min(statesData.length * 16 + 10, 120);
+      checkPageBreak(chartHeight + 20);
       drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
       drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, statesData, false);
       yPosition += chartHeight + 8;
@@ -784,7 +802,8 @@ export const generatePDF = async (
         color: colors.brightBlue
       }));
       
-      const chartHeight = Math.min(categoryData.length * 16 + 10, 100);
+const chartHeight = Math.min(categoryData.length * 16 + 10, 100);
+      checkPageBreak(chartHeight + 20);
       drawCard(doc, margin, yPosition, pageWidth - 2 * margin, chartHeight);
       drawModernBarChart(doc, margin + 8, yPosition + 6, pageWidth - 2 * margin - 75, categoryData, true);
       yPosition += chartHeight + 8;
@@ -816,15 +835,16 @@ export const generatePDF = async (
     
     yPosition += 19;
     
-    const winsTableData = wins.slice(0, 10).map((win, index) => [
+let winsTableData = wins.slice(0, 10).map((win, index) => [
       (index + 1).toString(),
-      (win.bid_number || 'N/A').substring(0, 18),
-      (win.org || 'N/A').substring(0, 28),
-      (win.dept || 'N/A').substring(0, 22),
+      clean((win.bid_number || 'N/A').substring(0, 18)),
+      clean((win.org || 'N/A').substring(0, 28)),
+      clean((win.dept || 'N/A').substring(0, 22)),
       win.quantity?.toString() || '0',
       formatCurrency(win.total_price || 0),
       formatDate(win.ended_at || win.created_at)
     ]);
+    winsTableData = winsTableData.map(row => row.map(cell => typeof cell === 'string' ? clean(cell) : cell));
     
     autoTable(doc, {
       startY: yPosition,
